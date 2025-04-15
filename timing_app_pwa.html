@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timing App</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4CAF50">
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => console.log('Service Worker registered'))
+          .catch(err => console.error('Service Worker registration failed:', err));
+      });
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    #mainButton {
+      width: 90%;
+      height: 200px;
+      font-size: 32px;
+      background-color: green;
+      color: white;
+      border: none;
+      margin: 20px 0;
+      border-radius: 10px;
+    }
+    #endButton {
+      font-size: 16px;
+      padding: 10px 20px;
+      background-color: grey;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+    #results {
+      display: none;
+      margin-top: 30px;
+    }
+    canvas {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <h2>Tap the Button to Time</h2>
+  <button id="mainButton">Start</button><br>
+  <button id="endButton">End Now</button>
+  <div id="results">
+    <h3>Recorded Times (seconds)</h3>
+    <ul id="timeList"></ul>
+    <p><strong>Average:</strong> <span id="averageTime"></span> sec</p>
+    <canvas id="chartCanvas" width="400" height="200"></canvas>
+  </div>
+
+  <script>
+    let startTime = null;
+    let times = [];
+    let wakeLock = null;
+
+    async function requestWakeLock() {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => {
+          console.log('Wake Lock was released');
+        });
+        console.log('Wake Lock is active');
+      } catch (err) {
+        console.error(`${err.name}, ${err.message}`);
+      }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    });
+
+    const mainButton = document.getElementById("mainButton");
+    const endButton = document.getElementById("endButton");
+    const results = document.getElementById("results");
+    const timeList = document.getElementById("timeList");
+    const averageTime = document.getElementById("averageTime");
+
+    mainButton.addEventListener("click", () => {
+      requestWakeLock();
+      if (!startTime) {
+        startTime = new Date();
+        mainButton.style.backgroundColor = "lightblue";
+        mainButton.textContent = "Stop";
+      } else {
+        const duration = (new Date() - startTime) / 1000;
+        times.push(duration);
+        startTime = null;
+        mainButton.style.backgroundColor = "green";
+        mainButton.textContent = "Start";
+      }
+    });
+
+    endButton.addEventListener("click", () => {
+      results.style.display = "block";
+      timeList.innerHTML = "";
+      let sum = 0;
+      times.forEach((t, i) => {
+        let li = document.createElement("li");
+        li.textContent = `Attempt ${i + 1}: ${t.toFixed(2)} sec`;
+        timeList.appendChild(li);
+        sum += t;
+      });
+      averageTime.textContent = (sum / times.length).toFixed(2);
+
+      const ctx = document.getElementById('chartCanvas').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: times.map((_, i) => `Attempt ${i + 1}`),
+          datasets: [{
+            label: 'Time (s)',
+            data: times,
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
